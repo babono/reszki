@@ -27,7 +27,7 @@ const getPlainText = (richTextData: Array<RichTextItemResponse>): string => {
 
 // Helper function to extract file URLs from a Notion files property
 type NotionFile = { type: 'file', file?: { url: string }} | { type: 'external', external?: { url: string }};
-const getFileUrls = (filesArray: Array<NotionFile>): string[] => { // Changed Array<any> to Array<NotionFile>
+const getFileUrls = (filesArray: Array<NotionFile>): string[] => { 
   return filesArray?.map((file: NotionFile) => {
     if (file.type === 'file' && file.file) {
       return file.file.url;
@@ -68,7 +68,17 @@ export async function GET() {
 
       const name = (nameProperty?.type === 'title' ? getPlainText(nameProperty.title) : 'Untitled');
       const description = (descriptionProperty?.type === 'rich_text' ? getPlainText(descriptionProperty.rich_text) : '');
-      const galleryUrls = (galleryProperty?.type === 'files' && Array.isArray(galleryProperty.files) ? getFileUrls(galleryProperty.files) : []);
+      
+      let galleryUrls: string[] = [];
+      if (galleryProperty?.type === 'files' && Array.isArray(galleryProperty.files)) {
+        // Filter files to ensure 'type' is defined and is either 'file' or 'external'
+        const validFiles = galleryProperty.files.filter(
+          file => file.type === 'file' || file.type === 'external'
+        );
+        // Cast to NotionFile[] as the filter ensures the type property matches our definition
+        galleryUrls = getFileUrls(validFiles as NotionFile[]);
+      }
+      
       const isMore = isMoreWorksProperty?.type === 'checkbox' ? isMoreWorksProperty.checkbox : false;
 
       if (!name) {
