@@ -286,11 +286,13 @@ export default function Home() {
                   <li
                     key={work.id}
                     className="mb-1"
-                    onMouseEnter={() => handleMouseEnterWork(work)} // Add mouse enter
-                    onMouseLeave={handleMouseLeaveWork}           // Add mouse leave
                   >
                     {/* Pass false or omit isFromMoreWorks for main list */}
-                    <button onClick={() => handleWorkClick(work)} className="hover:underline text-left w-full">
+                    <button 
+                      onMouseEnter={() => handleMouseEnterWork(work)} // Add mouse enter
+                      onMouseLeave={handleMouseLeaveWork}     
+                      onClick={() => handleWorkClick(work)} 
+                      className="hover:underline text-left">
                       {work.name}
                     </button>
                   </li>
