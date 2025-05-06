@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, MouseEvent } from 'react'; // Import MouseEvent
 import WorkDetail from "./components/WorkDetail"; // Import the WorkDetail component
 
 // Define the Work interface matching the API response
@@ -32,6 +32,11 @@ export default function Home() {
   const [passwordError, setPasswordError] = useState<string | null>(null); // Password error message
   // --- End new state ---
 
+  // --- State for sneak peek ---
+  const [hoveredWorkImage, setHoveredWorkImage] = useState<string | null>(null);
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
+  // --- End sneak peek state ---
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -46,8 +51,16 @@ export default function Home() {
         if (data.error) {
           throw new Error(data.error);
         }
-        setWorks(data.works || []);
-        setMoreWorks(data.moreWorks || []);
+        // Ensure Gallery is always an array
+        const processWorks = (workList: any[]): Work[] =>
+          (workList || []).map(work => ({
+            ...work,
+            Gallery: Array.isArray(work.Gallery) ? work.Gallery : [],
+          }));
+
+        setWorks(processWorks(data.works));
+        setMoreWorks(processWorks(data.moreWorks));
+
       } catch (e: any) {
         console.error("Failed to fetch works:", e);
         setError("Failed to load works. Please try again later.");
@@ -64,11 +77,13 @@ export default function Home() {
     console.log("Clicked work:", work.name, "Is from more works:", isFromMoreWorks);
     setPasswordError(null); // Clear previous errors
     setPasswordInput('');   // Clear previous input
+    setHoveredWorkImage(null); // Hide sneak peek on click
 
     if (isFromMoreWorks) {
       // Trigger password prompt for 'moreWorks' items
       setPromptWork(work);
       setShowPasswordPrompt(true);
+      setIsSidebarOpen(true); // Ensure sidebar is open for prompt
       // Keep sidebar open, don't set selectedWork yet
     } else {
       // Directly show detail for main 'works' items
@@ -100,6 +115,7 @@ export default function Home() {
     setPromptWork(null);
     setPasswordInput('');
     setPasswordError(null);
+    // Don't close the sidebar, just show the list again
   };
 
   // Function to close the sidebar completely
@@ -110,17 +126,37 @@ export default function Home() {
     setPromptWork(null);
     setPasswordInput('');
     setPasswordError(null);
+    setHoveredWorkImage(null); // Hide sneak peek
   };
-
 
   // Placeholder function to close the detail view
   const closeDetailView = () => {
     setSelectedWork(null);
   };
 
+  // --- Sneak Peek Handlers ---
+  const handleMouseEnterWork = (work: Work) => {
+    if (work.Gallery && work.Gallery.length > 0) {
+      setHoveredWorkImage(work.Gallery[0]);
+    }
+  };
+
+  const handleMouseLeaveWork = () => {
+    setHoveredWorkImage(null);
+  };
+
+  const handleMouseMove = (e: MouseEvent<HTMLElement>) => {
+    setCursorPosition({ x: e.clientX, y: e.clientY });
+  };
+  // --- End Sneak Peek Handlers ---
+
   return (
     // Add overflow-hidden when detail view is open to prevent background scroll
-    <div className={`min-h-screen flex flex-col relative ${selectedWork ? 'overflow-hidden' : ''}`}>
+    // Add onMouseMove here to track cursor position globally within the main container
+    <div
+      className={`min-h-screen flex flex-col relative ${selectedWork ? 'overflow-hidden' : ''}`}
+      onMouseMove={handleMouseMove} // Track mouse movement for sneak peek positioning
+    >
       {/* Sidebar Overlay */}
       {isSidebarOpen && (
         <div
@@ -153,7 +189,7 @@ export default function Home() {
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               placeholder="password"
-              className="border-0 rounded px-2 py-1 w-full my-10  focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
+              className="border-0 rounded px-2 py-1 w-full my-10 focus:border-gray-500 focus:ring-1 focus:ring-gray-500" // Removed invalid focus:border-gray-500:focus:ring-gray-500
             />
             {passwordError && (
               <p className="text-red-500 text-sm mb-4">{passwordError}</p>
@@ -226,7 +262,12 @@ export default function Home() {
             <>
               <ul>
                 {works.map((work) => (
-                  <li key={work.id} className="mb-1">
+                  <li
+                    key={work.id}
+                    className="mb-1"
+                    onMouseEnter={() => handleMouseEnterWork(work)} // Add mouse enter
+                    onMouseLeave={handleMouseLeaveWork}           // Add mouse leave
+                  >
                     {/* Pass false or omit isFromMoreWorks for main list */}
                     <button onClick={() => handleWorkClick(work)} className="hover:underline text-left w-full">
                       {work.name}
@@ -236,7 +277,11 @@ export default function Home() {
               </ul>
               {moreWorks.length > 0 && (
                 <button
-                  onClick={() => setIsSidebarOpen(true)} // Just open sidebar, list shows by default
+                  onClick={() => {
+                    setIsSidebarOpen(true); // Just open sidebar
+                    setShowPasswordPrompt(false); // Ensure password prompt is hidden initially
+                    setPromptWork(null); // Clear any potential leftover prompt work
+                  }}
                   className="mt-4 inline-block underline cursor-pointer"
                   disabled={isLoading || !!error}
                 >
@@ -257,12 +302,33 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="flex items-center h-[96px] px-8 text-xs text-gray-400 mt-auto">
-        2025 © made by arketipe
+        2025 © made by&nbsp;<Link href="https://arketipe.id/" className="underline">arketipe</Link>
       </footer>
 
       {/* Detail View Component */}
       {selectedWork && (
         <WorkDetail work={selectedWork} onClose={closeDetailView} />
+      )}
+
+      {/* Sneak Peek Image */}
+      {hoveredWorkImage && (
+        <div
+          className="fixed pointer-events-none z-[60] transition-opacity duration-200" // High z-index, ignore pointer events
+          style={{
+            left: `${cursorPosition.x + 15}px`, // Position based on cursor with offset
+            top: `${cursorPosition.y + 15}px`,
+            opacity: 1, // Could add fade-in/out later if desired
+          }}
+        >
+          <Image
+            src={hoveredWorkImage}
+            alt="Sneak peek"
+            width={240} // Adjust size as needed
+            height={240} // Adjust size as needed
+            className="object-cover rounded shadow-md bg-gray-50" // Basic styling
+            unoptimized // If images are external and not optimized by Next.js
+          />
+        </div>
       )}
     </div>
   );
