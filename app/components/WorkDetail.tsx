@@ -67,7 +67,7 @@ export default function WorkDetail({ work, onClose }: WorkDetailProps) {
               src={work.Gallery[currentImageIndex]}
               alt={`${work.name} - Image ${currentImageIndex + 1}`}
               layout="fill" // Use layout="fill" for responsive background-like image
-              objectFit="contain" // 'cover' or 'contain' based on preference
+              objectFit="cover" // 'cover' or 'contain' based on preference
               className="transition-opacity duration-300 ease-in-out" // Optional fade effect
               priority={currentImageIndex === 0} // Prioritize loading the first image
               unoptimized // Add if using external URLs (like Notion's temporary ones)
@@ -77,17 +77,17 @@ export default function WorkDetail({ work, onClose }: WorkDetailProps) {
               <>
                 <button
                   onClick={goToPrevImage}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 z-10"
+                  className="absolute left-2 top-1/2 transform -translate-y-1/2 p-2 z-10"
                   aria-label="Previous Image"
                 >
-                  &#10094; {/* Left Arrow */}
+                  <Image src="/ic-chevron_left.svg" alt="Previous" width={60} height={60} />
                 </button>
                 <button
                   onClick={goToNextImage}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 z-10"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 z-10"
                   aria-label="Next Image"
                 >
-                  &#10095; {/* Right Arrow */}
+                  <Image src="/ic-chevron_right.svg" alt="Next" width={60} height={60} />
                 </button>
               </>
             )}
@@ -100,16 +100,17 @@ export default function WorkDetail({ work, onClose }: WorkDetailProps) {
       {/* Right Side: Details */}
       <div className="w-1/3 h-full p-8 overflow-y-auto relative">
         {/* Close Button */}
+        <div className="mb-24 text-right">
         <button
           onClick={handleClose}
-          className="absolute top-8 right-8 text-gray-600 hover:text-black z-10"
+          className="z-10"
           aria-label="Close"
         >
           <Image src="/ic-close.svg" alt="Close" width={24} height={24} />
         </button>
-
+        </div>
         {/* Content */}
-        <div className="mt-16"> {/* Add margin-top to avoid overlap with close button */}
+        <div className=""> {/* Add margin-top to avoid overlap with close button */}
           <h2 className="text-2xl font-bold mb-4">{work.name}</h2>
           <p className="text-gray-700 whitespace-pre-wrap">{work.Description}</p>
         </div>
