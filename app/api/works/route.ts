@@ -1,6 +1,11 @@
 import { Client } from "@notionhq/client";
 import { NextResponse } from 'next/server';
-import type { PageObjectResponse, PartialPageObjectResponse } from "@notionhq/client/build/src/api-endpoints"; // Import Notion types
+import type {
+  PageObjectResponse,
+  PartialPageObjectResponse,
+  RichTextItemResponse
+} from "@notionhq/client/build/src/api-endpoints";
+import { isFullPage, APIResponseError } from "@notionhq/client";
 
 // Initialize Notion client
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
@@ -15,21 +20,22 @@ interface Work {
 }
 
 // Helper function to extract plain text from a Notion rich text property
-const getPlainText = (richTextData: any): string => {
+const getPlainText = (richTextData: Array<RichTextItemResponse>): string => {
   if (!Array.isArray(richTextData)) return '';
-  return richTextData.map((rt: any) => rt.plain_text).join('') || '';
+  return richTextData.map((rt: RichTextItemResponse) => rt.plain_text).join('') || '';
 };
 
 // Helper function to extract file URLs from a Notion files property
-const getFileUrls = (filesArray: any[]): string[] => {
-  return filesArray?.map((file: any) => {
-    if (file.type === 'file') {
-      return file.file?.url; // External files hosted by Notion (temporary URLs)
-    } else if (file.type === 'external') {
-      return file.external?.url; // External URLs you added
+type NotionFile = { type: 'file', file?: { url: string }, [key: string]: any } | { type: 'external', external?: { url: string }, [key: string]: any };
+const getFileUrls = (filesArray: Array<any>): string[] => {
+  return filesArray?.map((file: NotionFile) => {
+    if (file.type === 'file' && file.file) {
+      return file.file.url;
+    } else if (file.type === 'external' && file.external) {
+      return file.external.url;
     }
     return null;
-  }).filter((url): url is string => url !== null) || []; // Filter out nulls and ensure type is string
+  }).filter((url): url is string => url !== null) || [];
 };
 
 export async function GET() {
@@ -41,50 +47,37 @@ export async function GET() {
   try {
     const response = await notion.databases.query({
       database_id: DATABASE_ID,
-      // Add sorts if needed, e.g., by an 'Order' property or 'Created time'
       sorts: [
-        // Example: Sort by a property named 'Order'
-        // { property: 'Order', direction: 'ascending' },
-        // Fallback sort by creation time if 'Order' doesn't exist or isn't set
         { timestamp: 'created_time', direction: 'descending' }
       ],
-      // Add filters if you only want to fetch 'Published' items, for example
-      // filter: { property: 'Status', status: { equals: 'Published' } }
     });
 
-    // Initialize arrays for the structured data
     const works: Work[] = [];
     const moreWorks: Work[] = [];
 
-    // Process results and build the Work objects
-    for (const page of response.results) {
-      // Type guard to ensure we have a full page object, not a partial one
-      if (!('properties' in page)) {
+    for (const page of response.results as Array<PageObjectResponse | PartialPageObjectResponse>) {
+      if (!isFullPage(page)) {
+        console.warn(`Page ${page.id} is partial and was skipped.`);
         continue;
       }
 
-      // --- Extract data using property names from your Notion DB ---
-      // Adjust 'Name', 'Description', 'Gallery', 'isMoreWorks' if your property names differ
-
-      const nameProperty = page.properties.Name; // Assuming 'Name' is the Title property
-      const descriptionProperty = page.properties.Description; // Assuming 'Description' is Rich Text
-      const galleryProperty = page.properties.Gallery; // Assuming 'Gallery' is Files & Media
-      const isMoreWorksProperty = page.properties.isMoreWorks; // Assuming 'isMoreWorks' is Checkbox
+      const nameProperty = page.properties.Name;
+      const descriptionProperty = page.properties.Description;
+      const galleryProperty = page.properties.Gallery;
+      const isMoreWorksProperty = page.properties.isMoreWorks;
 
       const name = (nameProperty?.type === 'title' ? getPlainText(nameProperty.title) : 'Untitled');
       const description = (descriptionProperty?.type === 'rich_text' ? getPlainText(descriptionProperty.rich_text) : '');
       const galleryUrls = (galleryProperty?.type === 'files' && Array.isArray(galleryProperty.files) ? getFileUrls(galleryProperty.files) : []);
       const isMore = isMoreWorksProperty?.type === 'checkbox' ? isMoreWorksProperty.checkbox : false;
-      // --- End data extraction ---
 
-      // Basic validation: Ensure at least a name exists
       if (!name) {
         console.warn(`Page ${page.id} skipped because it has no title.`);
         continue;
       }
 
       const workItem: Work = {
-        id: page.id, // Use Notion's page ID
+        id: page.id,
         name: name,
         Description: description,
         Gallery: galleryUrls,
@@ -99,9 +92,16 @@ export async function GET() {
 
     return NextResponse.json({ works, moreWorks });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching from Notion:", error);
-    const errorMessage = error.body ? JSON.parse(error.body).message : 'Failed to fetch data from Notion';
-    return NextResponse.json({ error: errorMessage }, { status: error.status || 500 });
+    let errorMessage = 'Failed to fetch data from Notion';
+    let status = 500;
+    if (error instanceof APIResponseError) {
+      errorMessage = error.message;
+      status = error.status;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return NextResponse.json({ error: errorMessage }, { status: status });
   }
 }

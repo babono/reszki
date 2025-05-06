@@ -13,6 +13,15 @@ interface Work {
   Gallery: string[];
 }
 
+// Define a type for the raw data before processing
+// Allows Gallery to be potentially something other than string[] initially
+interface RawWork {
+  id: string;
+  name: string;
+  Description: string;
+  Gallery: unknown; // Use unknown for initial flexibility
+}
+
 export default function Home() {
   // Update state to hold Work objects
   const [works, setWorks] = useState<Work[]>([]);
@@ -47,23 +56,35 @@ export default function Home() {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data = await response.json();
+        // Assume the API returns an object with works and moreWorks properties
+        // which are arrays of RawWork or similar structure.
+        const data: { works?: unknown[], moreWorks?: unknown[], error?: string } = await response.json();
         if (data.error) {
           throw new Error(data.error);
         }
         // Ensure Gallery is always an array
-        const processWorks = (workList: any[]): Work[] =>
-          (workList || []).map(work => ({
-            ...work,
-            Gallery: Array.isArray(work.Gallery) ? work.Gallery : [],
-          }));
+        // Type the input parameter more strictly
+        const processWorks = (workList: unknown[] | undefined): Work[] =>
+          (workList || []).map((work: unknown) => {
+            // Type assertion after checking structure (use with caution or add more robust checks)
+            const rawWork = work as RawWork;
+            return {
+              ...rawWork,
+              Gallery: Array.isArray(rawWork.Gallery) ? rawWork.Gallery as string[] : [],
+            };
+          });
 
         setWorks(processWorks(data.works));
         setMoreWorks(processWorks(data.moreWorks));
 
-      } catch (e: any) {
+      } catch (e: unknown) { // Change 'any' to 'unknown'
+        // Type check the error before accessing properties
+        let errorMessage = "Failed to load works. Please try again later.";
+        if (e instanceof Error) {
+          errorMessage = `Failed to load works: ${e.message}. Please try again later.`;
+        }
         console.error("Failed to fetch works:", e);
-        setError("Failed to load works. Please try again later.");
+        setError(errorMessage);
       } finally {
         setIsLoading(false);
       }
